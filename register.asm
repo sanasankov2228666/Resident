@@ -22,7 +22,161 @@ FRAME_Y     equ 6
 
 ; _______________________________________________________________________________________________________________________________________
 ;						
-;					              =========== INTERAPT ==========
+;					              =========== INTERAPT 08h changed==========
+;
+; _______________________________________________________________________________________________________________________________________
+
+
+
+; ======================  compare_intr (void) ========================
+;                       
+; 	entery:    void
+; 	exit:      ---                                    
+; 	expected:  ---
+;	destr:     ax, bx, cx, dx, di, ds, cs
+;
+; ==================================================================
+
+compare_intr:
+
+		; ======== save registers ========
+	
+		push ax
+		push bx 
+		push cx
+		push dx
+		push di
+		push si
+
+		push ds
+		push es
+
+		mov ax, cs
+		mov ds, ax								; put ds = cs
+
+		mov ax, 0b800h
+		mov es, ax								; es = VRAM segment
+
+		mov ax, [open_close_flag]
+		cmp ax, 0
+		je closed
+
+		; ====== saving regs before interapt =======		
+
+		mov dh, FRAME_X
+		mov dl, FRAME_Y
+
+		call get_offset
+
+		xor cx, cx
+		xor si, si
+		mov bx, offset frame
+
+		; ===== loop =====
+	
+		begin_loop_ci:
+
+		cmp cx, FRAME_H
+		je end_loop_ci
+		
+		call compare_line
+
+		inc dl
+		inc cx
+
+		call get_offset
+		
+		jmp begin_loop_ci
+
+		; ===== end loop =====
+
+		end_loop_ci:
+
+		; ======== get regs =========
+
+		closed:
+
+		pop es
+		pop ds
+
+		pop si
+		pop di
+		pop dx
+		pop cx
+		pop bx
+		pop ax
+
+		; ======= jump to old interapt =======
+
+		jmp dword ptr cs:[old_ofs_08h]
+
+
+; ======================  compare_line (void) ========================
+;                       
+; 	entery:    dl, dh - y, x
+; 	exit:      ---                                    
+; 	expected:  es - VRAM segment, bx - frame adres
+;	destr:     ax, cx, di, si
+;
+; ==================================================================		
+
+compare_line:
+
+		push ax
+		push cx
+		
+		mov cx, FRAME_L
+
+		; ===== loop =====
+	
+		begin_loop_cl:
+
+		cmp cx, 0
+		je end_loop_cl
+
+		mov ax, es:[di]
+		cmp ax, [bx + si]
+		jne different
+
+		add si, 2
+		add di, 2
+		dec cx
+
+		jmp begin_loop_cl
+
+		; ====== if different ======
+
+		different:
+
+		push bx
+
+		mov bx, offset buffer1
+		mov [bx + si], ax
+
+		pop bx
+
+		mov ax, [bx + si]
+		mov es:[di], ax
+
+		add si, 2
+		add di, 2
+		dec cx
+
+		jmp begin_loop_cl
+		
+		; ===== end loop =====
+
+		end_loop_cl:
+
+		pop cx
+		pop ax
+
+		ret
+
+
+; _______________________________________________________________________________________________________________________________________
+;						
+;					              =========== INTERAPT 09h changed==========
 ;
 ; _______________________________________________________________________________________________________________________________________
 
@@ -32,7 +186,7 @@ FRAME_Y     equ 6
 ; 	entery:    void
 ; 	exit:      ---                                    
 ; 	expected:  ---
-;	destr:     ax, bx, es
+;	destr:     ax, bx, cx, dx, di, si, ds, es
 ;
 ; ==================================================================
 
@@ -54,40 +208,41 @@ my_interapt:
 		; ====== saving regs before interapt =======		
 
 		mov ax, cs
-		mov ds, ax
+		mov ds, ax								; put ds = cs
 
 		call save_regs
 
 		mov ax, 0b800h
-		mov es, ax 
+		mov es, ax 								; es = VRAM segment
 
-		in al, 60h
+		in al, 60h					
 		
-		cmp al, 7
+		cmp al, 7								; if scan code not 6
 		jne default_way
 
-		mov ax, [open_close_flag]
-		cmp ax, 0
+		; ======= check window flag =======
+
+		mov ax, [open_close_flag]		
+		cmp ax, 0								; check if opened window
 		jne close_wind
 			
-		mov bx, offset buffer1 
+		; ======= output window =======
 
+		mov bx, offset buffer1 					; save back in buffer1
 		call save_back
-		
-		mov bx, FRAME_L
-		mov cx, FRAME_H
 
-		call print_frame
 		call print_regs
 
-		mov word ptr [open_close_flag], 1
+		mov bx, offset frame
+		call buffer_out
 
-		jmp proces_interapt
+		mov word ptr [open_close_flag], 1		; put window is opened
+
+		jmp proces_interapt	
+
+		; ======= close window =======
 
 		close_wind:
-		
-		mov bx, offset frame
-		call save_back
 
 		mov bx, offset buffer1
 		call buffer_out
@@ -140,13 +295,16 @@ my_interapt:
 		jmp dword ptr cs:[old_ofs_09h]
 
 
+; _________________________________________________________________________________________________________________________________________________
+
+
 
 ; ============================  save_regs (void) =============================
 ;
-;	entery:    
+;	entery:    void
 ;	exit:      ---                                
 ;	expected:  es = VRAM segment
-;	destr:     
+;	destr:     bp, bx, cx, si
 ;	
 ; ===========================================================================
 
@@ -200,7 +358,7 @@ save_regs:
 ;
 ;	entery:    void
 ;	exit:      ---                                
-;	expected:  es = VRAM segment
+;	expected:  ---
 ;	destr:     ax, bx, cx, dx, di, si
 ;	
 ; ===========================================================================
@@ -218,8 +376,8 @@ print_regs:
 
 		xor si, si
 
-		mov dh, 37
-		mov dl, 8
+		mov di, offset frame
+		add di, 70
 
 		mov cx, 8
 
@@ -234,11 +392,11 @@ print_regs:
 		
 		call print_reg_line
 
-		inc dl
 		dec cx
 
 		add bx, 10
 		add si, 2
+		add di, 32
 
 		jmp loop_pr		
 
@@ -257,10 +415,10 @@ print_regs:
 
 
 
-; ==========================  print_reg_line (dl, dh, bx)  =========================
+; ==========================  print_reg_line (bx, di)  ============================
 ;
-;	entery:    dl, dh - y, x, bx buffer adres
-;	exit:      ---                                
+;	entery:    bx, di
+;	exit:      ---                               
 ;	expected:  es = VRAM segment
 ;	destr:     ax, bx, cx, dx, di, si
 ;	
@@ -278,9 +436,7 @@ print_reg_line:
 		push si
 		push si
 
-		mov cx, 5
-		call get_offset		
-
+		mov cx, 5	
 		xor si, si
 
 		; ====== loop ======
@@ -291,7 +447,7 @@ print_reg_line:
 		je end_loop_rl
 		
 		mov ax, [bx + si]
-		mov es:[di], ax
+		mov [di], ax
 
 		add di, 2
 		add si, 2
@@ -328,31 +484,33 @@ print_reg_line:
 ; ==================================================================================
 
 print_reg_val:
+
 		push bx
 		push cx
 
-    		mov bx, [old_regs + si] 
-    		mov cx, 4               
+    	mov bx, [old_regs + si] 
+    	mov cx, 4               
 
 		loop_hex:
-    		rol bx, 4 
-    		mov al, bl
+    	rol bx, 4 
+    	mov al, bl
    		and al, 0Fh
     
    		cmp al, 10
    		jl is_digit
    		add al, 7 
 		is_digit:
-    		add al, '0'
+    	add al, '0'
     
    		mov ah, 1Eh 
-   		mov es:[di], ax
+   		mov [di], ax
    		add di, 2
-    		loop loop_hex
+    	loop loop_hex
 
-    		pop cx
+    	pop cx
    		pop bx
-    		ret
+
+    	ret
 
 
 
@@ -455,6 +613,7 @@ buffer_line_out:
 		ret
 		
 
+; _________________________________________________________________________________________________________________________________________________
 
 
 ; ============================  save_back (void)  ===========================
@@ -467,6 +626,7 @@ buffer_line_out:
 ; ===========================================================================
 
 save_back:	
+
 		; ======= save registers ======
 
 		push ax
@@ -514,11 +674,13 @@ save_back:
 		ret
 		
 
-		
+; _________________________________________________________________________________________________________________________________________________
+	
+
 
 ; ==========================  save_line (bx)  =========================
 ;
-;	entery:    bx - buffer adres
+;	entery:    bx - buffer adres dl, dh - y, x
 ;	exit:      bx - end of line                              
 ;	expected:  di - adres line begin, es - video ram segment
 ;	destr:     ax, bx, cx, di
@@ -562,14 +724,66 @@ save_line:
 ; _______________________________________________________________________________________________________________________________________
 
 
+; _________________________________________________________________________________________________________________________________________________
 
-; ==========================  print_frame (bx, cx)  =========================
+
+
+; ============================  put_bfr_frame (void) =============================
 ;
-;	entery:    bx - lenght
-;                  cx - height
+;	entery:    
 ;	exit:      ---                                
 ;	expected:  es = VRAM segment
-;	destr:     bx, cx
+;	destr:     ax, bx, cx, es
+;	
+; ===========================================================================
+
+
+; put_bfr_frame:
+
+; 			; ====== save regs =======
+
+; 			push ax
+; 			push bx
+; 			push cx
+; 			push es
+
+; 			mov ax, 0b800h			
+; 			mov es, ax				; es = VRAM segment
+
+; 			mov bx, buffer1
+; 			call save_back			; save back in buffer1
+
+; 			mov bx, FRAME_L
+; 			mov cx, FRAME_H
+
+; 			call print_frame		; print frame
+			
+; 			mov bx, frame
+; 			call save_back			; save frame in buffer
+
+; 			mov bx, buffer1
+; 			call buffer_out			; back out
+
+; 			; ======= get regs ========
+
+; 			pop es
+; 			pop cx
+; 			pop bx
+; 			pop ax
+			
+; 			ret
+
+
+; _________________________________________________________________________________________________________________________________________________
+
+
+
+; ===========================  print_frame (void)  ==========================
+;
+;	entery:    void
+;	exit:      ---                                
+;	expected:  ---
+;	destr:     ax, bx, cx
 ;	
 ; ===========================================================================
 
@@ -579,33 +793,29 @@ print_frame:
 
 			push ax
 			push bx
-			push cx
-			push dx
-			push si
-			push di
-
-			; ===== find right up corner x y ======
-
-			mov dh, FRAME_X
-			mov dl, FRAME_Y
-			
-			call get_offset				
+			push cx		
 			
 			; ==== top-left corner ====
 
+			mov bx, offset frame				; bx - frame buffer adres
+
 			mov al, 201
 			mov ah, 27
-			mov es:[di], ax
+
+			mov [bx], ax
+
+			add bx, 2
 			
 			; ==== line ====
 
 			call print_x_line	
 			
 			mov ax, 7099
-			mov es:[di], ax
+			mov [bx], ax						; right top corner
+			add bx, 2
 			
-			inc dl					; y++
-			sub cx, 2
+			mov cx, FRAME_H
+			sub cx, 2							; cx - count in lines
 
 			; ==== begin of the loop ====
 
@@ -615,32 +825,25 @@ print_frame:
 			je end_loop_horizontal
 			
 			dec cx
-			push cx
 			call print_in_line
-			pop  cx
-			inc dl
 			
 			jmp loop_horizontal
 
 			; ===== end of the loop =====
 
 			end_loop_horizontal:
-
-			call get_offset
 		
 			mov ax, 7112
-			mov es:[di], ax
+			mov [bx], ax
+			add bx, 2
 
 			call print_x_line	
 
 			mov ax, 7100
-			mov es:[di], ax
+			mov [bx], ax
 
 			; ==== end of func =====
 			
-			pop di
-			pop si
-			pop dx
 			pop cx
 			pop bx
 			pop ax
@@ -655,39 +858,37 @@ print_frame:
 ; ===========================  print_in_line (void)  =========================
 ;
 ;	entry:    void
-;	exit:     di - video memory offset
-;	expected: es = VRAM segment, bx - leight, dh - x, dl - y
-;	destr:    ax, bx, di, cx
+;	exit:     bx - current buffer adres
+;	expected: ---
+;	destr:    ax, bx, cx
 ;	
 ; ============================================================================
 
 
 print_in_line:
-			push bx
-			push di		
 
-			sub bx, 2	
-			
-			call get_offset
+			push ax
+			push cx
+
+			mov cx, FRAME_L
+			sub cx, 2
 
 			; ==== print ( ║ ) begin ====			
 
-			mov cx, 7098
-			mov es:[di], cx			; print ( ║ )	blue background, light blue symbol 	
-
-			add di, 2
+			mov ax, 7098
+			mov [bx], ax			; print ( ║ )	blue background, light blue symbol 	
+			add bx, 2
 
 			loop_line_in_print: 
 			
-			cmp bx, 0
+			cmp cx, 0
 			je end_loop_line_in_print
 
-			dec bx
+			dec cx
 			
-			mov cx, 4128 
-			mov es:[di], cx       ; blue
-				
-			add di, 2		
+			mov ax, 4128 
+			mov [bx], ax       ; blue
+			add bx, 2		
 
 			jmp loop_line_in_print
 
@@ -695,11 +896,13 @@ print_in_line:
 
 			; ==== print ( ║ ) end ====
 
-			mov cx, 7098
-			mov es:[di], cx			; print ( ║ )	blue background, light blue symbol 	
+			mov ax, 7098
+			mov [bx], ax			; print ( ║ )	blue background, light blue symbol 	
+			add bx, 2
 
-			pop di
-			pop bx
+			pop cx
+			pop ax
+
 			ret
 
 	
@@ -710,42 +913,40 @@ print_in_line:
 ; ===========================  print_x_line (void)  ===========================
 ;
 ;	entry:    void
-;	exit:     di - video memory offset
-;	expected: es = VRAM segment, bx - leight, dh - x, dl - y
-;	destr:    ax, bx, di, cx
+;	exit:     bx - current buffer adres
+;	expected: ---
+;	destr:    ax, bx, cx
 ;	
 ; ============================================================================
 
 
 print_x_line:
-			push bx
+
+			push ax
 			push cx		
 
-			sub bx, 2 			
-			
-			call get_offset
-			add di, 2
+			mov cx, FRAME_L
+			sub cx, 2	
 
 			loop_line_x_print: 
 			
-			cmp bx, 0
+			cmp cx, 0
 			je end_loop_line_x_print
 
-			dec bx
+			dec cx
 			
-			mov cx, 5069
-			mov es:[di], cx       ; 201 ansi ( ═ ) blue background, light blue symbol 
+			mov ax, 5069
+			mov [bx], ax       ; 201 ansi ( ═ ) blue background, light blue symbol 
 				
-			add di, 2		
+			add bx, 2		
 
 			jmp loop_line_x_print
 
 			end_loop_line_x_print:
 
 			pop cx
-			pop bx
+			pop ax
 			ret
-			
 
 
 ; _______________________________________________________________________________________________________________________________________			
@@ -796,42 +997,79 @@ get_offset:
 
 main:
 		
-		xor ax, ax
-		mov es, ax
+		xor ax, ax						; ax = 0
+		mov es, ax						; es = 0
+
+		
+		; ======= save 09h adres ========
+
+		mov bx, 36						; bx = 36
+
+		mov ax, es:[bx]					; ax = offset 09h
+   		mov [old_ofs_09h], ax			; saved offset of 09h
+    	mov ax, es:[bx+2]				; ax = segment 09h
+    	mov [old_seg_09h], ax			; saved segment 09h
+
+
+		; ======= save 08h adres ========
+
+		mov bx, 32						; bx = 32
+
+		mov ax, es:[bx]					; ax = offset 08h
+   		mov [old_ofs_08h], ax			; saved offset of 08h
+    	mov ax, es:[bx+2]				; ax = segment 08h
+    	mov [old_seg_08h], ax			; saved segment 08h
+
+		; ======== check if interapt instaled =======
+
+    	mov ax, es:[bx]					
+		cmp ax, offset compare_intr	; check if instaled 08h new offset
+		jne install
+
+		mov ax, es:[bx+2]
+		mov cx, cs
+		cmp ax, cx						; check if instaled 08h new segment
+		jne install
 
 		mov bx, 36
-		
-		mov ax, es:[bx]
-   		mov [old_ofs_09h], ax
-    		mov ax, es:[bx+2]
-    		mov [old_seg_09h], ax
 
-    		mov ax, es:[bx]
-    		cmp ax, offset my_interapt
-    		jne install
+		mov ax, es:[bx]					
+		cmp ax, offset my_interapt		; check if instaled 09h new offset
+		jne install
     
 		mov ax, es:[bx+2]
 		mov cx, cs
-		cmp ax, cx
+		cmp ax, cx						; check if instaled 09h new segment
 		jne install
+
+		; ======== already instaled =========
 
 		mov dx, offset msg_already
    		mov ah, 9
-    		int 21h
+    	int 21h
 	
 		mov ax, 4C00h
 		int 21h 
 
-		install:
+		; ======== instalation =========
+
+		install:					
 
 		cli
-   		mov word ptr es:[bx], offset my_interapt
-    		mov word ptr es:[bx+2], cs
+   		mov word ptr es:[36], offset my_interapt	; changed interapt adres
+    	mov word ptr es:[36+2], cs
+
+   		mov word ptr es:[32], offset compare_intr	; changed interapt adres
+    	mov word ptr es:[32+2], cs
    		sti
+
+		; ======== end of instalation =========
+
+		call print_frame
 
 		mov dx, offset msg_installed
    		mov ah, 9
-    		int 21h
+    	int 21h
 
 		mov dx, offset end_label
 		shr dx, 4         
@@ -865,6 +1103,9 @@ open_close_flag  dw 0				; openen or closed window
 
 old_ofs_09h 	 dw 0				; old 09h offset
 old_seg_09h 	 dw 0				; old 09h segment
+
+old_ofs_08h 	 dw 0				; old 08h offset
+old_seg_08h 	 dw 0				; old 08h segment
 
 msg_already      db 'Already installed$'	; messages for user
 msg_installed    db 'Installed$'		; 
