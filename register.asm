@@ -33,9 +33,9 @@ FRAME_Y     equ 6
 ; 	entery:    void
 ; 	exit:      ---                                    
 ; 	expected:  ---
-;	destr:     ax, bx, cx, dx, di, ds, cs
+;	destr:     ax, bx, cx, dx, di, si, ds, cs
 ;
-; ==================================================================
+; ===================================================================
 
 compare_intr:
 
@@ -57,8 +57,8 @@ compare_intr:
 		mov ax, 0b800h
 		mov es, ax								; es = VRAM segment
 
-		mov ax, [open_close_flag]
-		cmp ax, 0
+		mov ax, [open_close_flag]				
+		cmp ax, 0								; if closes
 		je closed
 
 		; ====== saving regs before interapt =======		
@@ -111,14 +111,14 @@ compare_intr:
 		jmp dword ptr cs:[old_ofs_08h]
 
 
-; ======================  compare_line (void) ========================
+; =======================  compare_line (dl, dh) =======================
 ;                       
 ; 	entery:    dl, dh - y, x
 ; 	exit:      ---                                    
 ; 	expected:  es - VRAM segment, bx - frame adres
 ;	destr:     ax, cx, di, si
 ;
-; ==================================================================		
+; ====================================================================	
 
 compare_line:
 
@@ -728,57 +728,7 @@ save_line:
 
 
 
-; ============================  put_bfr_frame (void) =============================
-;
-;	entery:    
-;	exit:      ---                                
-;	expected:  es = VRAM segment
-;	destr:     ax, bx, cx, es
-;	
-; ===========================================================================
-
-
-; put_bfr_frame:
-
-; 			; ====== save regs =======
-
-; 			push ax
-; 			push bx
-; 			push cx
-; 			push es
-
-; 			mov ax, 0b800h			
-; 			mov es, ax				; es = VRAM segment
-
-; 			mov bx, buffer1
-; 			call save_back			; save back in buffer1
-
-; 			mov bx, FRAME_L
-; 			mov cx, FRAME_H
-
-; 			call print_frame		; print frame
-			
-; 			mov bx, frame
-; 			call save_back			; save frame in buffer
-
-; 			mov bx, buffer1
-; 			call buffer_out			; back out
-
-; 			; ======= get regs ========
-
-; 			pop es
-; 			pop cx
-; 			pop bx
-; 			pop ax
-			
-; 			ret
-
-
-; _________________________________________________________________________________________________________________________________________________
-
-
-
-; ===========================  print_frame (void)  ==========================
+; ===========================  write_frame (void)  ==========================
 ;
 ;	entery:    void
 ;	exit:      ---                                
@@ -788,7 +738,7 @@ save_line:
 ; ===========================================================================
 
 
-print_frame:		
+write_frame:		
 			; ===== save registers =====			
 
 			push ax
@@ -808,7 +758,7 @@ print_frame:
 			
 			; ==== line ====
 
-			call print_x_line	
+			call write_x_line	
 			
 			mov ax, 7099
 			mov [bx], ax						; right top corner
@@ -825,7 +775,7 @@ print_frame:
 			je end_loop_horizontal
 			
 			dec cx
-			call print_in_line
+			call write_in_line
 			
 			jmp loop_horizontal
 
@@ -837,7 +787,7 @@ print_frame:
 			mov [bx], ax
 			add bx, 2
 
-			call print_x_line	
+			call write_x_line	
 
 			mov ax, 7100
 			mov [bx], ax
@@ -855,7 +805,7 @@ print_frame:
 
 
 		
-; ===========================  print_in_line (void)  =========================
+; ===========================  write_in_line (void)  =========================
 ;
 ;	entry:    void
 ;	exit:     bx - current buffer adres
@@ -865,7 +815,7 @@ print_frame:
 ; ============================================================================
 
 
-print_in_line:
+write_in_line:
 
 			push ax
 			push cx
@@ -873,16 +823,16 @@ print_in_line:
 			mov cx, FRAME_L
 			sub cx, 2
 
-			; ==== print ( ║ ) begin ====			
+			; ==== write ( ║ ) begin ====			
 
 			mov ax, 7098
-			mov [bx], ax			; print ( ║ )	blue background, light blue symbol 	
+			mov [bx], ax			; write ( ║ )	blue background, light blue symbol 	
 			add bx, 2
 
-			loop_line_in_print: 
+			loop_line_in_write: 
 			
 			cmp cx, 0
-			je end_loop_line_in_print
+			je end_loop_line_in_write
 
 			dec cx
 			
@@ -890,14 +840,14 @@ print_in_line:
 			mov [bx], ax       ; blue
 			add bx, 2		
 
-			jmp loop_line_in_print
+			jmp loop_line_in_write
 
-			end_loop_line_in_print:
+			end_loop_line_in_write:
 
-			; ==== print ( ║ ) end ====
+			; ==== write ( ║ ) end ====
 
 			mov ax, 7098
-			mov [bx], ax			; print ( ║ )	blue background, light blue symbol 	
+			mov [bx], ax			; write ( ║ )	blue background, light blue symbol 	
 			add bx, 2
 
 			pop cx
@@ -910,7 +860,7 @@ print_in_line:
 
 			
 		
-; ===========================  print_x_line (void)  ===========================
+; ===========================  write_x_line (void)  ===========================
 ;
 ;	entry:    void
 ;	exit:     bx - current buffer adres
@@ -920,7 +870,7 @@ print_in_line:
 ; ============================================================================
 
 
-print_x_line:
+write_x_line:
 
 			push ax
 			push cx		
@@ -928,10 +878,10 @@ print_x_line:
 			mov cx, FRAME_L
 			sub cx, 2	
 
-			loop_line_x_print: 
+			loop_line_x_write: 
 			
 			cmp cx, 0
-			je end_loop_line_x_print
+			je end_loop_line_x_write
 
 			dec cx
 			
@@ -940,9 +890,9 @@ print_x_line:
 				
 			add bx, 2		
 
-			jmp loop_line_x_print
+			jmp loop_line_x_write
 
-			end_loop_line_x_print:
+			end_loop_line_x_write:
 
 			pop cx
 			pop ax
@@ -1065,7 +1015,7 @@ main:
 
 		; ======== end of instalation =========
 
-		call print_frame
+		call write_frame							; write frame in buffer
 
 		mov dx, offset msg_installed
    		mov ah, 9
@@ -1108,12 +1058,12 @@ old_ofs_08h 	 dw 0				; old 08h offset
 old_seg_08h 	 dw 0				; old 08h segment
 
 msg_already      db 'Already installed$'	; messages for user
-msg_installed    db 'Installed$'		; 
+msg_installed    db 'Installed$'		 
 
 
-frame            db 384 dup (0)		        ; frame copy
+frame            db FRAME_SIZE dup (0)		    ; frame copy
 
-buffer1          db 384 dup (0)			; under frame copy
+buffer1          db FRAME_SIZE dup (0)			; under frame copy
 
 
 end_label:
