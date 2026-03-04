@@ -41,18 +41,21 @@ compare_intr:
 
 		; ======== save registers ========
 	
-		push ax
-		push bx 
-		push cx
-		push dx
-		push di
+		push bp
 		push si
+		push di
+		push dx
+		push cx
+		push bx
+		push ax
 
 		push ds
 		push es
 
 		mov ax, cs
 		mov ds, ax								; put ds = cs
+
+		call save_regs
 
 		mov ax, 0b800h
 		mov es, ax								; es = VRAM segment
@@ -92,6 +95,14 @@ compare_intr:
 
 		end_loop_ci:
 
+		cmp [stop_regs_flag], 1
+		je closed
+
+		call print_regs						; update regs value
+
+		mov bx, offset frame						
+		call buffer_out						; frame out
+
 		; ======== get regs =========
 
 		closed:
@@ -99,12 +110,13 @@ compare_intr:
 		pop es
 		pop ds
 
-		pop si
-		pop di
-		pop dx
-		pop cx
-		pop bx
 		pop ax
+		pop bx
+		pop cx
+		pop dx
+		pop di
+		pop si
+		pop bp	
 
 		; ======= jump to old interapt =======
 
@@ -217,8 +229,17 @@ my_interapt:
 
 		in al, 60h					
 		
-		cmp al, 7								; if scan code not 6
+		cmp al, 7								; if button not ( 6 - open or close window )
+		je window_proccesing
+
+		cmp al, 8								; if button not ( 7 - open or close window )
 		jne default_way
+
+		xor [stop_regs_flag], 1
+
+		jmp proces_interapt
+
+		window_proccesing:
 
 		; ======= check window flag =======
 
@@ -303,7 +324,7 @@ my_interapt:
 ;
 ;	entery:    void
 ;	exit:      ---                                
-;	expected:  es = VRAM segment
+;	expected:  es = VRAM segment, stack - [ax], [bx], [cx], [dx], [di], [si], [bp], [ip, cs, flags]
 ;	destr:     bp, bx, cx, si
 ;	
 ; ===========================================================================
@@ -365,7 +386,7 @@ save_regs:
 
 print_regs:
 
-		; ======= save registers ======
+		; ======= save registers =======
 
 		push ax
 		push bx 
@@ -412,7 +433,6 @@ print_regs:
 		pop ax
 	
 		ret
-
 
 
 ; ==========================  print_reg_line (bx, di)  ============================
@@ -1042,14 +1062,15 @@ str_cx		 dw 1E43h, 1E58h, 1020h, 1E3Dh, 1020h	; CX =
 str_dx		 dw 1E44h, 1E58h, 1020h, 1E3Dh, 1020h	; DX =
 str_di		 dw 1E44h, 1E49h, 1020h, 1E3Dh, 1020h	; DI =
 str_si		 dw 1E53h, 1E49h, 1020h, 1E3Dh, 1020h	; SI =
-str_bp		 dw 1E42h, 1E42h, 1020h, 1E3Dh, 1020h	; BP =
-str_sp		 dw 1E53h, 1E42h, 1020h, 1E3Dh, 1020h	; SP =
+str_bp		 dw 1E42h, 1E50h, 1020h, 1E3Dh, 1020h	; BP =
+str_sp		 dw 1E53h, 1E50h, 1020h, 1E3Dh, 1020h	; SP =
 
 
 old_regs  	 dw 8 dup (0)			; registers before interapt   [ax, bx, cx, dx, di, si, bp, sp]
 
 
 open_close_flag  dw 0				; openen or closed window
+stop_regs_flag   dw 0				; openen or closed window
 
 old_ofs_09h 	 dw 0				; old 09h offset
 old_seg_09h 	 dw 0				; old 09h segment
@@ -1058,7 +1079,7 @@ old_ofs_08h 	 dw 0				; old 08h offset
 old_seg_08h 	 dw 0				; old 08h segment
 
 msg_already      db 'Already installed$'	; messages for user
-msg_installed    db 'Installed$'		 
+msg_installed    db 'SUCCESSFULLY INSTALLED$'		 
 
 
 frame            db FRAME_SIZE dup (0)		    ; frame copy
