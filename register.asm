@@ -521,7 +521,7 @@ print_reg_val proc
 
 		; ======= loop =======
 
-		loop_prv:
+		loop_hex:
 
     	rol bx, 4 
     	mov al, bl
@@ -539,7 +539,7 @@ print_reg_val proc
    		mov [di], ax
    		add di, 2
 
-    	loop loop_prv
+    	loop loop_hex
 
     	pop cx
    		pop bx
@@ -1089,7 +1089,7 @@ str_bp		 dw 1E42h, 1E50h, 1020h, 1E3Dh, 1020h	; BP =
 str_sp		 dw 1E53h, 1E50h, 1020h, 1E3Dh, 1020h	; SP =
 
 
-old_regs  	 dw 13 dup (0)			; registers before interapt   [ax, bx, cx, dx, di, si, bp, sp, ds, es, ss, cs, ip]
+old_regs  	 dw 13 dup (0)			; registers before interapt   [ax, bx, cx, dx, di, si, bp, sp, ds, es, ss, cs, ]
 
 
 open_close_flag  dw 0				; openen or closed window
