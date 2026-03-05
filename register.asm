@@ -535,7 +535,7 @@ print_reg_val proc
 		is_digit:
     	add al, '0'
     
-   		mov ah, 'A'
+   		mov ah, 1Eh
    		mov [di], ax
    		add di, 2
 
