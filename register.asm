@@ -334,6 +334,7 @@ my_interapt endp
 ; ===========================================================================
 
 save_regs proc
+
 		push bp
 		push bx
 		push cx
@@ -368,7 +369,7 @@ save_regs proc
 
 		end_loop_sr:
 
-		add bp, 6
+		add bp, 12
 		mov [bx + si], bp
 
 		pop si
@@ -518,20 +519,26 @@ print_reg_val proc
     	mov bx, [old_regs + si] 
     	mov cx, 4               
 
+		; ======= loop =======
+
 		loop_hex:
+
     	rol bx, 4 
     	mov al, bl
    		and al, 0Fh
     
    		cmp al, 10
    		jl is_digit
-   		add al, 7 
+
+   		add al, 7
+		
 		is_digit:
     	add al, '0'
     
    		mov ah, 1Eh 
    		mov [di], ax
    		add di, 2
+
     	loop loop_hex
 
     	pop cx
